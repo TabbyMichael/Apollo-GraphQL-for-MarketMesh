@@ -1,0 +1,95 @@
+type User @key(fields: "id") {
+  id: ID!
+  email: String! @shareable
+  firstName: String
+  lastName: String
+  fullName: String @requires(fields: "firstName lastName")
+  role: UserRole!
+  createdAt: String!
+  updatedAt: String!
+}
+
+enum UserRole {
+  CUSTOMER
+  SELLER
+  ADMIN
+}
+
+input CreateUserInput {
+  email: String! @constraint(format: "email")
+  password: String! @constraint(minLength: 8)
+  firstName: String
+  lastName: String
+  role: UserRole = CUSTOMER
+}
+
+input UpdateUserInput {
+  email: String @constraint(format: "email")
+  firstName: String
+  lastName: String
+  role: UserRole
+}
+
+input LoginInput {
+  email: String! @constraint(format: "email")
+  password: String!
+}
+
+type AuthPayload {
+  token: String!
+  user: User!
+}
+
+extend type Query {
+  """
+  Get the currently authenticated user
+  """
+  me: User
+  
+  """
+  Get a user by ID
+  """
+  user(id: ID!): User
+  
+  """
+  List all users (admin only)
+  """
+  users(
+    role: UserRole
+    page: Int = 1
+    limit: Int = 20
+  ): [User!]!
+}
+
+extend type Mutation {
+  """
+  Register a new user
+  """
+  signup(input: CreateUserInput!): AuthPayload!
+  
+  """
+  Login with email and password
+  """
+  login(input: LoginInput!): AuthPayload!
+  
+  """
+  Update user profile
+  """
+  updateProfile(input: UpdateUserInput!): User!
+  
+  """
+  Delete user account
+  """
+  deleteAccount: Boolean!
+}
+
+# Federation types for entities that reference User
+type Product @key(fields: "id") {
+  id: ID!
+  seller: User! @external
+}
+
+type Order @key(fields: "id") {
+  id: ID!
+  customer: User! @external
+}

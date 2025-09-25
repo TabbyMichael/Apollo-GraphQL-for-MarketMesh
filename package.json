@@ -1,0 +1,30 @@
+{
+  "name": "marketmesh-graphql",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev:gateway": "pnpm --filter @marketmesh/gateway dev",
+    "dev:products": "pnpm --filter @marketmesh/products dev",
+    "dev:users": "pnpm --filter @marketmesh/users dev",
+    "dev:orders": "pnpm --filter @marketmesh/orders dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "test": "pnpm -r test"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "packageManager": "pnpm@8.0.0",
+  "dependencies": {
+    "@emotion/server": "^11.11.0",
+    "@mui/styles": "^6.5.0",
+    "@types/styled-components": "^5.1.34",
+    "styled-components": "^6.1.19"
+  }
+}
