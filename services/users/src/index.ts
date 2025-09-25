@@ -1,77 +1,44 @@
 import { ApolloServer } from '@apollo/server';
 import { startStandaloneServer } from '@apollo/server/standalone';
-import { readFileSync } from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import { buildSubgraphSchema } from '@apollo/subgraph';
-import { loadFilesSync } from '@graphql-tools/load-files';
-import { mergeResolvers } from '@graphql-tools/merge';
-import { Resolvers } from './generated/graphql';
-import userResolvers from './resolvers/userResolver';
+import { readFileSync } from 'fs';
+import gql from 'graphql-tag';
+import * as dotenv from 'dotenv';
+import * as path from 'path';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
 
-// Load schema from .graphql file
-const typeDefs = readFileSync(
-  path.join(__dirname, 'schema.graphql'),
-  'utf-8'
-);
+const typeDefs = gql(readFileSync('./src/schema.graphql', { encoding: 'utf-8' }));
 
-// Merge all resolvers
-const resolvers: Resolvers = mergeResolvers([userResolvers]);
-
-// Create Apollo Server with Federation support
-const server = new ApolloServer({
-  schema: buildSubgraphSchema({
-    typeDefs,
-    resolvers: resolvers as any, // Type assertion needed due to type mismatch
-  }),
-  plugins: [
-    // Basic logging
-    {
-      async requestDidStart() {
-        return {
-          async didResolveOperation(requestContext) {
-            const { operationName, query, variables } = requestContext.request;
-            console.log('GraphQL Request:', {
-              operationName,
-              query: query?.replace(/\s+/g, ' ').trim(),
-              variables,
-            });
-          },
-          async didEncounterErrors(requestContext) {
-            console.error('GraphQL Errors:', requestContext.errors);
-          },
-        };
-      },
-    },
-  ],
-});
-
-// Start the server
-const { url } = await startStandaloneServer(server, {
-  listen: { port: Number(process.env.PORT) || 4002 },
-  context: async ({ req }) => {
-    // Extract token from Authorization header
-    const token = req.headers.authorization?.replace('Bearer ', '') || '';
-    
-    try {
-      if (token) {
-        // Verify and decode the token
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key') as { userId: string; role: string };
-        return { 
-          userId: decoded.userId,
-          role: decoded.role,
-          token,
-        };
-      }
-    } catch (error) {
-      console.error('Error verifying token:', error);
-    }
-    
-    return { token };
+const resolvers = {
+  Query: {
+    me: () => ({ id: '1', email: 'user@example.com', role: 'USER' }),
   },
+  User: {
+    __resolveReference(user: { id: string; }) {
+        return { id: user.id, email: `user+${user.id}@example.com`, role: 'USER' };
+    }
+  }
+};
+
+const schema = buildSubgraphSchema({ typeDefs, resolvers });
+
+const server = new ApolloServer({
+  schema,
 });
 
-console.log(`🚀 Users service ready at ${url}`);
+const port = parseInt(process.env.USERS_SERVICE_PORT || '4002', 10);
+
+async function startUsersService() {
+  try {
+    const { url } = await startStandaloneServer(server, {
+      listen: { port },
+    });
+    console.log(`🚀 Users service ready at ${url}`);
+  } catch (error) {
+    console.error('Failed to start Users service:', error);
+    process.exit(1);
+  }
+}
+
+startUsersService();
