@@ -205,6 +205,10 @@ const Header = ({ onMenuClick, isMobile }: HeaderProps) => {
           />
         </Box>
 
+        <Button color="inherit" onClick={() => router.push('/products')}>
+          Products
+        </Button>
+
         {/* Icons */}
         <Box sx={{ display: 'flex' }}>
           <IconButton
