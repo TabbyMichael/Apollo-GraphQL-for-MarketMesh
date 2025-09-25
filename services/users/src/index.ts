@@ -2,21 +2,15 @@ import { ApolloServer } from '@apollo/server';
 import { startStandaloneServer } from '@apollo/server/standalone';
 import { readFileSync } from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import { buildSubgraphSchema } from '@apollo/subgraph';
-import { loadFilesSync } from '@graphql-tools/load-files';
 import { mergeResolvers } from '@graphql-tools/merge';
+import jwt from 'jsonwebtoken';
+
 import { Resolvers } from './generated/graphql';
 import userResolvers from './resolvers/userResolver';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
 // Load schema from .graphql file
-const typeDefs = readFileSync(
-  path.join(__dirname, 'schema.graphql'),
-  'utf-8'
-);
+const typeDefs = readFileSync(path.join(__dirname, 'schema.graphql'), 'utf-8');
 
 // Merge all resolvers
 const resolvers: Resolvers = mergeResolvers([userResolvers]);
@@ -25,7 +19,7 @@ const resolvers: Resolvers = mergeResolvers([userResolvers]);
 const server = new ApolloServer({
   schema: buildSubgraphSchema({
     typeDefs,
-    resolvers: resolvers as any, // Type assertion needed due to type mismatch
+    resolvers,
   }),
   plugins: [
     // Basic logging
@@ -49,29 +43,38 @@ const server = new ApolloServer({
   ],
 });
 
-// Start the server
-const { url } = await startStandaloneServer(server, {
-  listen: { port: Number(process.env.PORT) || 4002 },
-  context: async ({ req }) => {
-    // Extract token from Authorization header
-    const token = req.headers.authorization?.replace('Bearer ', '') || '';
+// Function to start the server
+async function startServer() {
+  // Start the server
+  const { url } = await startStandaloneServer(server, {
+    listen: { port: Number(process.env.PORT) || 4002 },
+    context: async ({ req }) => {
+      // Extract token from Authorization header
+      const token = req.headers.authorization?.replace('Bearer ', '') || '';
 
-    try {
-      if (token) {
-        // Verify and decode the token
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key') as { userId: string; role: string };
-        return {
-          userId: decoded.userId,
-          role: decoded.role,
-          token,
-        };
+      try {
+        if (token) {
+          // Verify and decode the token
+          const decoded = jwt.verify(token, process.env.JWT_SECRET!) as {
+            userId: string;
+            role: string;
+          };
+          return {
+            userId: decoded.userId,
+            role: decoded.role,
+            token,
+          };
+        }
+      } catch (error) {
+        console.error('Error verifying token:', error);
       }
-    } catch (error) {
-      console.error('Error verifying token:', error);
-    }
 
-    return { token };
-  },
-});
+      return { token };
+    },
+  });
 
-console.log(`🚀 Users service ready at ${url}`);
+  console.log(`🚀 Users service ready at ${url}`);
+}
+
+// Start the server
+startServer();
