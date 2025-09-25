@@ -1,157 +1,276 @@
-# MarketMesh - E-commerce Platform with Apollo GraphQL
+# MarketMesh - Federated GraphQL E-commerce Platform
 
-A modern e-commerce platform built with a microservices architecture using Apollo GraphQL Federation, TypeScript, and Next.js.
+[![Build Status](https://img.shields.io/github/actions/workflow/status/your-username/marketmesh-graphql/ci.yml?branch=main&style=for-the-badge)](https://github.com/your-username/marketmesh-graphql/actions)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
+[![pnpm](https://img.shields.io/badge/pnpm-8.x-orange.svg?style=for-the-badge)](https://pnpm.io/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg?style=for-the-badge)](https://www.typescriptlang.org/)
 
-## 🚀 Features
+**MarketMesh** is a modern, scalable e-commerce platform built on a federated GraphQL API. It leverages a microservices architecture to create a flexible and maintainable system, with a Next.js frontend for a seamless user experience.
 
-- **Federated GraphQL API** - Multiple microservices composed into a single GraphQL API
-- **Type-Safe** - Full TypeScript support throughout the stack
-- **Modern Frontend** - Next.js with Apollo Client and Material-UI
-- **Scalable** - Independently deployable microservices
-- **Developer Experience** - Code generation, hot reloading, and more
+---
 
-## 🏗️ Project Structure
+## 📖 Table of Contents
 
-```
-.
-├── apps/
-│   └── web/                    # Next.js frontend application
-├── packages/
-│   └── graphql/                # Shared GraphQL types and fragments
-└── services/
-    ├── gateway/               # Apollo Gateway (API Gateway)
-    ├── products/              # Products microservice
-    ├── users/                 # Users & Authentication microservice
-    ├── orders/                # Orders microservice
-    ├── payments/              # Payments microservice
-    ├── notifications/         # Notifications microservice
-    ├── uploads/               # File uploads microservice
-    └── analytics/             # Analytics microservice
-```
+- [✨ Key Features](#-key-features)
+- [🏗️ Architecture Overview](#️-architecture-overview)
+- [🛠️ Tech Stack](#️-tech-stack)
+- [🚀 Getting Started](#-getting-started)
+  - [Prerequisites](#prerequisites)
+  - [Installation & Setup](#installation--setup)
+- [🏃‍♀️ Running the Application](#️-running-the-application)
+- [⚙️ Configuration](#️-configuration)
+- [🧪 Testing](#-testing)
+- [🤝 Contribution Guidelines](#-contribution-guidelines)
+- [🛣️ Roadmap](#️-roadmap)
+- [📄 License](#-license)
+- [🙏 Acknowledgments](#-acknowledgments)
 
-## 🛠️ Prerequisites
+---
 
-- Node.js 18+
-- pnpm 8+
-- PostgreSQL (or Docker for running PostgreSQL)
+## ✨ Key Features
+
+-   **Federated GraphQL API**: A single, unified data graph powered by multiple independent microservices using **Apollo Federation v2**.
+-   **Clean Microservices Architecture**: Each core domain (users, products, orders) is a separate, independently deployable service, promoting separation of concerns and team autonomy.
+-   **End-to-End Type Safety**: Leverages TypeScript across the entire stack, with generated types from GraphQL schemas ensuring consistency between the frontend and backend.
+-   **Modern, Scalable Stack**: Built with Node.js, TypeScript, Apollo Server, Prisma, Next.js, and Material-UI.
+-   **Efficient Monorepo**: Managed with `pnpm` workspaces for optimized dependency management and local development.
+-   **Database Per Service**: Each service has its own isolated database schema, managed with Prisma migrations.
+
+---
+
+## 🏗️ Architecture Overview
+
+The platform is a pnpm monorepo consisting of several packages, each with a distinct responsibility. This design allows for independent development, testing, and deployment of each component.
+
+![Architecture Diagram](https://i.imgur.com/U4aF4gU.png)
+
+-   **`apps/web`**: The Next.js frontend application that consumes the GraphQL API.
+-   **`packages/graphql`**: A shared package for generated GraphQL types and client-side queries.
+-   **`packages/utils`**: A shared package for common utilities like error handling and authentication logic.
+-   **`services/`**: Each subdirectory is a separate microservice:
+    -   **`gateway`**: The Apollo Gateway, which federates the subgraphs from the other services.
+    -   **`users`**: Manages user accounts, authentication (JWT), and roles.
+    -   **`products`**: Manages product information, stock, and pricing.
+    -   **`orders`**: Manages shopping carts, orders, and order items.
+
+---
+
+## 🛠️ Tech Stack
+
+| Area      | Technologies                                            |
+| :-------- | :------------------------------------------------------ |
+| **Backend** | Node.js, TypeScript, Apollo Server, Apollo Federation, Prisma |
+| **Frontend**| Next.js, React, TypeScript, Apollo Client, Material-UI      |
+| **Database**| PostgreSQL                                              |
+| **Tooling** | pnpm, Docker, Jest, ESLint, GraphQL Code Generator        |
+
+---
 
 ## 🚀 Getting Started
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/your-username/Apollo-GraphQL-for-MarketMesh.git
-   cd Apollo-GraphQL-for-MarketMesh
-   ```
+### Prerequisites
 
-2. **Install dependencies**
-   ```bash
-   pnpm install
-   ```
+-   [Node.js](https://nodejs.org/) (v18 or later)
+-   [pnpm](https://pnpm.io/) (v8 or later)
+-   [Docker](https://www.docker.com/) and [Docker Compose](https://docs.docker.com/compose/)
 
-3. **Set up environment variables**
-   ```bash
-   cp .env.example .env
-   # Update the .env file with your configuration
-   ```
+### Installation & Setup
 
-4. **Start the development servers**
+**1. Clone the Repository**
 
-   In separate terminal windows, run:
-   ```bash
-   # Start the gateway
-   pnpm --filter @marketmesh/gateway dev
+```bash
+git clone https://github.com/marketmesh/marketmesh-graphql.git
+cd marketmesh-graphql
+```
 
-   # Start the products service
-   pnpm --filter @marketmesh/products dev
+**2. Set Up Environment Variables**
 
-   # Start the users service
-   pnpm --filter @marketmesh/users dev
+Create a `.env` file in the root of the project by copying the example file. The default values are configured for the local Docker setup.
 
-   # Start the orders service
-   pnpm --filter @marketmesh/orders dev
+```bash
+cp .env.example .env
+```
 
-   # Start the Next.js frontend
-   pnpm --filter @marketmesh/web dev
-   ```
+**3. Start the Database**
 
-5. **Open the application**
-   - Frontend: http://localhost:3000
-   - GraphQL Playground: http://localhost:4000/graphql
+A local PostgreSQL instance is required. You can start one easily with Docker Compose:
 
-## 📚 Services Documentation
+```bash
+docker-compose up -d
+```
 
-### Products Service
-- **Port**: 4001
-- **GraphQL Endpoint**: http://localhost:4001/graphql
-- **Description**: Manages products, categories, and inventory.
+This will start a PostgreSQL server on port `5432`.
 
-### Users Service
-- **Port**: 4002
-- **GraphQL Endpoint**: http://localhost:4002/graphql
-- **Description**: Handles user authentication, profiles, and permissions.
+**4. Install Dependencies**
 
-### Orders Service
-- **Port**: 4003
-- **GraphQL Endpoint**: http://localhost:4003/graphql
-- **Description**: Manages orders, order items, and order history.
+Install all project dependencies using pnpm. This will install dependencies for all workspaces (`apps`, `packages`, and `services`).
+
+```bash
+pnpm install
+```
+
+**5. Run Database Migrations**
+
+Apply the Prisma schema migrations to your local database for each service:
+
+```bash
+pnpm --filter @marketmesh/users prisma migrate dev
+pnpm --filter @marketmesh/products prisma migrate dev
+pnpm --filter @marketmesh/orders prisma migrate dev
+```
+
+**6. Generate GraphQL Types**
+
+Generate the TypeScript types that the frontend will use to interact with the API:
+
+```bash
+pnpm --filter @marketmesh/graphql generate
+```
+
+---
+
+## 🏃‍♀️ Running the Application
+
+To run the entire platform for development, you will need to start each service and the frontend in **separate terminal windows**.
+
+| Service         | Command                                |
+| :-------------- | :------------------------------------- |
+| **Gateway**     | `pnpm --filter @marketmesh/gateway dev`  |
+| **Users Service** | `pnpm --filter @marketmesh/users dev`    |
+| **Products Service**| `pnpm --filter @marketmesh/products dev` |
+| **Orders Service**  | `pnpm --filter @marketmesh/orders dev`   |
+| **Frontend**    | `pnpm --filter @marketmesh/web dev`      |
+
+Once all services are running, you can access:
+
+-   **Frontend Application**: `http://localhost:3000`
+-   **GraphQL Playground**: `http://localhost:4000/graphql` (via the gateway)
+
+---
+
+##  API Usage
+
+### Authentication
+
+The API uses JWT for authentication. To perform authenticated actions, you must first register and log in.
+
+**1. Register a User**
+```graphql
+mutation SignupUser {
+  signup(input: {email: "test@example.com", password: "password123"}) {
+    token
+    user {
+      id
+      email
+      role
+    }
+  }
+}
+```
+
+**2. Log In**
+```graphql
+mutation LoginUser {
+  login(input: {email: "test@example.com", password: "password123"}) {
+    token
+  }
+}
+```
+
+**3. Make Authenticated Requests**
+
+Include the returned token in the `Authorization` header of subsequent requests:
+
+```
+Authorization: Bearer <YOUR_TOKEN_HERE>
+```
+
+### Example Queries
+
+**Fetch All Products**
+```graphql
+query GetProducts {
+  products {
+    id
+    name
+    price
+  }
+}
+```
+
+**Add a Product to the Cart (Authenticated)**
+```graphql
+mutation AddProductToCart {
+  addProductToCart(productId: "your-product-id", quantity: 1) {
+    id
+    total
+    items {
+      id
+      quantity
+      product {
+        id
+        name
+        price
+      }
+    }
+  }
+}
+```
 
 ## 🧪 Testing
 
-Run tests for all services:
+To run the tests for all services:
+
 ```bash
 pnpm test
 ```
 
-Run tests for a specific service:
+To run tests for a specific service:
+
 ```bash
-pnpm --filter @marketmesh/products test
+# Example for the 'users' service
+pnpm --filter @marketmesh/users test
 ```
 
-## 🏗️ Deployment
+The tests use **Jest** and `ts-jest`, with `jest-mock-extended` for mocking Prisma clients to ensure tests are isolated and do not require a database connection.
 
-### Prerequisites
-- Docker and Docker Compose
-- Kubernetes (for production)
-- CI/CD pipeline (GitHub Actions, GitLab CI, etc.)
+---
 
-### Production Build
+## 🤝 Contribution Guidelines
 
-1. Build all services:
-   ```bash
-   pnpm build
-   ```
+We welcome contributions! Please follow these steps:
 
-2. Start the services with Docker Compose:
-   ```bash
-   docker-compose up -d
-   ```
+1.  **Fork** the repository.
+2.  Create a new branch (`git checkout -b feature/my-new-feature`).
+3.  Make your changes.
+4.  Commit your changes (`git commit -m 'Add some feature'`).
+5.  Push to the branch (`git push origin feature/my-new-feature`).
+6.  Open a **Pull Request**.
+
+Please ensure your code adheres to the existing style and that all tests pass.
+
+---
+
+## 🛣️ Roadmap
+
+-   [ ] **Payments Service**: Full implementation with a payment provider like Stripe.
+-   [ ] **Notifications Service**: Implement email/SMS notifications for key events (e.g., order confirmation).
+-   [ ] **Enhanced Frontend**: Build out the full UI for product details, user profiles, and the checkout flow.
+-   [ ] **CI/CD Pipeline**: Full continuous integration and deployment pipeline.
+-   [ ] **Production Deployment**: Kubernetes manifests or other infrastructure-as-code for production deployment.
+
+---
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
-## 🤝 Contributing
-
-1. Fork the project
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## 📝 Code of Conduct
-
-Please read [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for details on our code of conduct.
-
-## 📧 Contact
-
-Your Name - your.email@example.com
-
-Project Link: [https://github.com/your-username/Apollo-GraphQL-for-MarketMesh](https://github.com/your-username/Apollo-GraphQL-for-MarketMesh)
+---
 
 ## 🙏 Acknowledgments
 
-- [Apollo GraphQL](https://www.apollographql.com/)
-- [Next.js](https://nextjs.org/)
-- [Prisma](https://www.prisma.io/)
-- [Material-UI](https://mui.com/)
-- And all the amazing open-source libraries we depend on!
+-   [Apollo GraphQL](https://www.apollographql.com/) for their powerful federation tools.
+-   [Prisma](https://www.prisma.io/) for their next-generation ORM.
+-   [Next.js](https://nextjs.org/) for the excellent React framework.
+-   The open-source community for providing the amazing libraries that make this project possible.
+```
