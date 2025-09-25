@@ -1,0 +1,143 @@
+type Order @key(fields: "id") {
+  id: ID!
+  customer: User!
+  items: [OrderItem!]!
+  status: OrderStatus!
+  total: Float!
+  shippingAddress: Address!
+  billingAddress: Address
+  paymentMethod: PaymentMethod!
+  paymentStatus: PaymentStatus!
+  createdAt: String!
+  updatedAt: String!
+}
+
+type OrderItem @key(fields: "id") {
+  id: ID!
+  order: Order!
+  product: Product!
+  quantity: Int!
+  price: Float!
+  total: Float!
+}
+
+enum OrderStatus {
+  PENDING
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+enum PaymentMethod {
+  CREDIT_CARD
+  PAYPAL
+  BANK_TRANSFER
+  CRYPTO
+}
+
+type Address {
+  street: String!
+  city: String!
+  state: String
+  postalCode: String!
+  country: String!
+  isDefault: Boolean
+}
+
+input AddressInput {
+  street: String!
+  city: String!
+  state: String
+  postalCode: String!
+  country: String!
+  isDefault: Boolean = false
+}
+
+input CreateOrderInput {
+  items: [OrderItemInput!]!
+  shippingAddress: AddressInput!
+  billingAddress: AddressInput
+  paymentMethod: PaymentMethod!
+}
+
+input OrderItemInput {
+  productId: ID!
+  quantity: Int!
+}
+
+# Federation types for entities that reference Order
+type User @key(fields: "id") {
+  id: ID!
+}
+
+type Product @key(fields: "id") {
+  id: ID!
+}
+
+extend type Query {
+  """
+  Get order by ID
+  """
+  order(id: ID!): Order
+  
+  """
+  Get orders for the current user
+  """
+  myOrders(
+    status: OrderStatus
+    page: Int = 1
+    limit: Int = 20
+  ): [Order!]!
+  
+  """
+  Get all orders (admin only)
+  """
+  allOrders(
+    status: OrderStatus
+    customerId: ID
+    page: Int = 1
+    limit: Int = 20
+  ): [Order!]!
+}
+
+extend type Mutation {
+  """
+  Create a new order
+  """
+  createOrder(input: CreateOrderInput!): Order!
+  
+  """
+  Update order status (admin only)
+  """
+  updateOrderStatus(id: ID!, status: OrderStatus!): Order!
+  
+  """
+  Cancel an order
+  """
+  cancelOrder(id: ID!): Order!
+  
+  """
+  Process a payment for an order
+  """
+  processPayment(orderId: ID!, paymentDetails: JSON!): PaymentResult!
+}
+
+type PaymentResult {
+  success: Boolean!
+  message: String
+  transactionId: String
+  order: Order
+}
+
+# Custom scalar for JSON
+type JSON = any
