@@ -1,34 +1,22 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-generator client {
-  provider = "prisma-client-js"
-  previewFeatures = ["filterJson"]
-}
-
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-model Product {
-  id          String   @id @default(cuid())
-  name        String
-  description String?
-  price       Float
-  stock       Int
-  sellerId    String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@index([sellerId])
-  @@index([name])
-  @@index([price])
-  @@index([createdAt])
+generator client {
+  provider = "prisma-client-js"
 }
 
-// This is a placeholder for the User type that will be provided by the Users service
-// It's not a database model, just a reference for Prisma Client
-type User {
-  id: String @id
+model Product {
+  id        String   @id @default(cuid())
+  name      String
+  price     Float
+  seller    Seller   @relation(fields: [sellerId], references: [id])
+  sellerId  String
+}
+
+model Seller {
+  id       String    @id @default(cuid())
+  name     String
+  products Product[]
 }

@@ -1,84 +1,19 @@
+extend schema
+  @link(url: "https://specs.apollo.dev/federation/v2.0",
+        import: ["@key"])
+
+type Query {
+  products: [Product!]!
+}
+
 type Product @key(fields: "id") {
   id: ID!
   name: String!
-  description: String
   price: Float!
-  stock: Int!
-  sellerId: ID!
-  seller: User! @requires(fields: "sellerId")
-  createdAt: String!
-  updatedAt: String!
+  seller: Seller
 }
 
-type User @key(fields: "id", resolvable: false) {
+type Seller {
   id: ID!
-}
-
-extend type Query {
-  """
-  Get all products with optional filtering and pagination
-  """
-  products(
-    """
-    Filter by product name (case-insensitive contains)
-    """
-    name: String
-    """
-    Filter by minimum price
-    """
-    minPrice: Float
-    """
-    Filter by maximum price
-    """
-    maxPrice: Float
-    """
-    Filter by seller ID
-    """
-    sellerId: ID
-    """
-    Page number (1-based)
-    """
-    page: Int = 1
-    """
-    Number of items per page
-    """
-    limit: Int = 20
-  ): [Product!]!
-  
-  """
-  Get a single product by ID
-  """
-  product(id: ID!): Product
-}
-
-extend type Mutation {
-  """
-  Create a new product
-  """
-  createProduct(input: CreateProductInput!): Product!
-  
-  """
-  Update an existing product
-  """
-  updateProduct(id: ID!, input: UpdateProductInput!): Product!
-  
-  """
-  Delete a product
-  """
-  deleteProduct(id: ID!): Boolean!
-}
-
-input CreateProductInput {
   name: String!
-  description: String
-  price: Float!
-  stock: Int!
-  sellerId: ID!
-}
-
-input UpdateProductInput {
-  name: String
-  description: String
-  price: Float
-  stock: Int
 }

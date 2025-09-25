@@ -78,6 +78,43 @@ A modern e-commerce platform built with a microservices architecture using Apoll
    - Frontend: http://localhost:3000
    - GraphQL Playground: http://localhost:4000/graphql
 
+## Example GraphQL Operations
+
+### Query: Get All Products
+
+```graphql
+query GetProducts {
+  products {
+    id
+    name
+    price
+    seller {
+      id
+      name
+    }
+  }
+}
+```
+
+### Mutation: Create an Order (Example)
+
+```graphql
+mutation CreateOrder($userId: ID!, $productIds: [ID!]!, $total: Float!) {
+  createOrder(userId: $userId, productIds: $productIds, total: $total) {
+    id
+    user {
+      id
+      email
+    }
+    products {
+      id
+      name
+    }
+    total
+  }
+}
+```
+
 ## 📚 Services Documentation
 
 ### Products Service
