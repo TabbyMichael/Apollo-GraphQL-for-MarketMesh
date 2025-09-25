@@ -1,34 +1,62 @@
 import { ApolloServer } from '@apollo/server';
 import { startStandaloneServer } from '@apollo/server/standalone';
-import { buildSubgraphSchema } from '@apollo/subgraph';
 import { readFileSync } from 'fs';
-import gql from 'graphql-tag';
-import { productResolver } from './resolvers/productResolver.js';
-import * as dotenv from 'dotenv';
-import * as path from 'path';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { buildSubgraphSchema } from '@apollo/subgraph';
+import { loadFilesSync } from '@graphql-tools/load-files';
+import { mergeResolvers } from '@graphql-tools/merge';
+import { Resolvers } from './generated/graphql';
+import productResolvers from './resolvers/productResolver';
 
-dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-const typeDefs = gql(readFileSync('./src/schema.graphql', { encoding: 'utf-8' }));
+// Load schema from .graphql file
+const typeDefs = readFileSync(
+  path.join(__dirname, 'schema.graphql'),
+  'utf-8'
+);
 
-const schema = buildSubgraphSchema({ typeDefs, resolvers: productResolver });
+// Merge all resolvers
+const resolvers: Resolvers = mergeResolvers([productResolvers]);
 
+// Create Apollo Server with Federation support
 const server = new ApolloServer({
-  schema,
+  schema: buildSubgraphSchema({
+    typeDefs,
+    resolvers: resolvers as any, // Type assertion needed due to type mismatch
+  }),
+  plugins: [
+    // Basic logging
+    {
+      async requestDidStart() {
+        return {
+          async didResolveOperation(requestContext) {
+            const { operationName, query, variables } = requestContext.request;
+            console.log('GraphQL Request:', {
+              operationName,
+              query: query?.replace(/\s+/g, ' ').trim(),
+              variables,
+            });
+          },
+          async didEncounterErrors(requestContext) {
+            console.error('GraphQL Errors:', requestContext.errors);
+          },
+        };
+      },
+    },
+  ],
 });
 
-const port = parseInt(process.env.PRODUCTS_SERVICE_PORT || '4001', 10);
+// Start the server
+const { url } = await startStandaloneServer(server, {
+  listen: { port: Number(process.env.PORT) || 4001 },
+  context: async ({ req }) => {
+    // You can add authentication/authorization logic here
+    const token = req.headers.authorization || '';
+    return { token };
+  },
+});
 
-async function startProductService() {
-  try {
-    const { url } = await startStandaloneServer(server, {
-      listen: { port },
-    });
-    console.log(`🚀 Products service ready at ${url}`);
-  } catch (error) {
-    console.error('Failed to start Products service:', error);
-    process.exit(1);
-  }
-}
-
-startProductService();
+console.log(`🚀 Products service ready at ${url}`);

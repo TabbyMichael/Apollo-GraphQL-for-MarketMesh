@@ -10,7 +10,7 @@ import { SnackbarProvider } from 'notistack';
 import { useEffect, useState } from 'react';
 import { CartProvider } from '../hooks/useCart';
 import { AuthProvider } from '../contexts/AuthContext';
-import apolloClient from '../lib/apollo';
+import { apolloClient } from '../lib/apollo';
 import createEmotionCache from '../lib/createEmotionCache';
 import theme from '../theme';
 
@@ -23,6 +23,31 @@ interface MyAppProps extends AppProps {
 
 export default function MyApp(props: MyAppProps) {
   const { Component, emotionCache = clientSideEmotionCache, pageProps } = props;
+  const router = useRouter();
+  const [mounted, setMounted] = useState(false);
+
+  // Fix for hydration mismatch errors
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Handle route changes for analytics or other side effects
+  useEffect(() => {
+    const handleRouteChange = (url: string) => {
+      // You can add analytics or other side effects here
+      console.log('App is changing to: ', url);
+    };
+
+    router.events.on('routeChangeComplete', handleRouteChange);
+
+    return () => {
+      router.events.off('routeChangeComplete', handleRouteChange);
+    };
+  }, [router.events]);
+
+  if (!mounted) {
+    return null; // or a loading spinner
+  }
 
   return (
     <CacheProvider value={emotionCache}>
