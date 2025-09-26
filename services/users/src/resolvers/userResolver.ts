@@ -1,25 +1,9 @@
-import { PrismaClient, UserRole } from '@prisma/client';
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
+import { ForbiddenError, AuthenticationError } from 'apollo-server-errors';
 import { Resolvers } from '../generated/graphql';
+import { Context } from '../context';
 
-const JWT_SECRET = process.env.JWT_SECRET!;
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
-
-const prisma = new PrismaClient();
-
-// Utility function to generate JWT token
-const generateToken = (userId: string, role: UserRole): string => {
-  return jwt.sign(
-    { userId, role },
-    JWT_SECRET,
-    { expiresIn: JWT_EXPIRES_IN }
-  );
-};
-
-const resolvers: Resolvers = {
+const resolvers: Resolvers<Context> = {
   User: {
-    // Resolve the fullName field by combining firstName and lastName
     fullName: (user) => {
       if (user.firstName && user.lastName) {
         return `${user.firstName} ${user.lastName}`;
@@ -28,148 +12,43 @@ const resolvers: Resolvers = {
     },
   },
   Query: {
-    me: async (_, __, { userId }) => {
-      if (!userId) throw new Error('Not authenticated');
-      
-      return prisma.user.findUnique({
-        where: { id: userId },
-      });
-    },
-    user: async (_, { id }, { userId, role }) => {
-      // Only allow admins to fetch other users
-      if (id !== userId && role !== 'ADMIN') {
-        throw new Error('Not authorized');
+    me: (_, __, { userId, userService }) => {
+      if (!userId) {
+        throw new AuthenticationError('Not authenticated');
       }
-      
-      return prisma.user.findUnique({
-        where: { id },
-      });
+      return userService.me(userId);
     },
-    users: async (_, { role, page = 1, limit = 20 }, { role: userRole }) => {
-      // Only allow admins to list users
+    user: (_, { id }, { userId, role, userService }) => {
+      return userService.user(id, userId!, role!);
+    },
+    users: (_, { role, page, limit }, { role: userRole, userService }) => {
       if (userRole !== 'ADMIN') {
-        throw new Error('Not authorized');
+        throw new ForbiddenError('Not authorized');
       }
-      
-      const skip = (page - 1) * limit;
-      const where = role ? { role } : {};
-      
-      return prisma.user.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { createdAt: 'desc' },
-      });
+      return userService.users(role, page, limit);
     },
   },
   Mutation: {
-    signup: async (_, { input }) => {
-      const { email, password, firstName, lastName, role } = input;
-      
-      // Check if user already exists
-      const existingUser = await prisma.user.findUnique({
-        where: { email },
-      });
-      
-      if (existingUser) {
-        throw new Error('User already exists');
-      }
-      
-      // Hash password
-      const hashedPassword = await bcrypt.hash(password, 10);
-      
-      // Create user
-      const user = await prisma.user.create({
-        data: {
-          email,
-          password: hashedPassword,
-          firstName,
-          lastName,
-          role,
-        },
-      });
-      
-      // Generate token
-      const token = generateToken(user.id, user.role);
-      
-      return {
-        token,
-        user,
-      };
+    signup: (_, { input }, { userService }) => {
+      return userService.signup(input);
     },
     
-    login: async (_, { input }) => {
-      const { email, password } = input;
-      
-      // Find user
-      const user = await prisma.user.findUnique({
-        where: { email },
-      });
-      
-      if (!user) {
-        throw new Error('Invalid credentials');
-      }
-      
-      // Verify password
-      const isValid = await bcrypt.compare(password, user.password);
-      if (!isValid) {
-        throw new Error('Invalid credentials');
-      }
-      
-      // Update last login
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { lastLogin: new Date() },
-      });
-      
-      // Generate token
-      const token = generateToken(user.id, user.role);
-      
-      return {
-        token,
-        user,
-      };
+    login: (_, { input }, { userService }) => {
+      return userService.login(input);
     },
     
-    updateProfile: async (_, { input }, { userId }) => {
-      if (!userId) throw new Error('Not authenticated');
-      
-      const { email, firstName, lastName, role } = input;
-      
-      // Check if email is already taken
-      if (email) {
-        const existingUser = await prisma.user.findFirst({
-          where: {
-            email,
-            NOT: { id: userId },
-          },
-        });
-        
-        if (existingUser) {
-          throw new Error('Email already in use');
-        }
+    updateProfile: (_, { input }, { userId, userService }) => {
+      if (!userId) {
+        throw new AuthenticationError('Not authenticated');
       }
-      
-      // Update user
-      return prisma.user.update({
-        where: { id: userId },
-        data: {
-          ...(email && { email }),
-          ...(firstName !== undefined && { firstName }),
-          ...(lastName !== undefined && { lastName }),
-          ...(role && { role }),
-        },
-      });
+      return userService.updateProfile(userId, input);
     },
     
-    deleteAccount: async (_, __, { userId }) => {
-      if (!userId) throw new Error('Not authenticated');
-      
-      await prisma.user.delete({
-        where: { id: userId },
-      });
-      
-      return true;
+    deleteAccount: (_, __, { userId, userService }) => {
+      if (!userId) {
+        throw new AuthenticationError('Not authenticated');
+      }
+      return userService.deleteAccount(userId);
     },
   },
 };
