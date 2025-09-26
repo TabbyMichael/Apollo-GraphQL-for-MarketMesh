@@ -10,7 +10,7 @@
     "generate": "graphql-codegen --config codegen.ts",
     "lint": "eslint . --ext .ts",
     "test": "jest",
-    "prisma": "prisma"
+    "prisma": "node_modules/.bin/prisma"
   },
   "dependencies": {
     "@apollo/server": "^4.9.0",
