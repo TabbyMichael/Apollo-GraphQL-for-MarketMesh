@@ -20,7 +20,7 @@
     "node": ">=18.0.0",
     "pnpm": ">=8.0.0"
   },
-  "packageManager": "pnpm@8.0.0",
+  "packageManager": "pnpm@10.17.1",
   "dependencies": {
     "@emotion/server": "^11.11.0",
     "@mui/styles": "^6.5.0",
