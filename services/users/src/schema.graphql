@@ -5,6 +5,7 @@ type User @key(fields: "id") {
   lastName: String
   fullName: String @requires(fields: "firstName lastName")
   role: UserRole!
+  lastLogin: String
   createdAt: String!
   updatedAt: String!
 }

@@ -5,9 +5,12 @@ import path from 'path';
 import { buildSubgraphSchema } from '@apollo/subgraph';
 import { mergeResolvers } from '@graphql-tools/merge';
 import jwt from 'jsonwebtoken';
+import { PrismaClient } from '@prisma/client';
 
 import { Resolvers } from './generated/graphql';
 import userResolvers from './resolvers/userResolver';
+import { UserService } from './userService';
+import { Context } from './context';
 
 // Load schema from .graphql file
 const typeDefs = readFileSync(path.join(__dirname, 'schema.graphql'), 'utf-8');
@@ -15,61 +18,47 @@ const typeDefs = readFileSync(path.join(__dirname, 'schema.graphql'), 'utf-8');
 // Merge all resolvers
 const resolvers: Resolvers = mergeResolvers([userResolvers]);
 
+// Instantiate dependencies
+const prisma = new PrismaClient();
+const userService = new UserService(prisma);
+
 // Create Apollo Server with Federation support
-const server = new ApolloServer({
+const server = new ApolloServer<Context>({
   schema: buildSubgraphSchema({
     typeDefs,
     resolvers,
   }),
-  plugins: [
-    // Basic logging
-    {
-      async requestDidStart() {
-        return {
-          async didResolveOperation(requestContext) {
-            const { operationName, query, variables } = requestContext.request;
-            console.log('GraphQL Request:', {
-              operationName,
-              query: query?.replace(/\s+/g, ' ').trim(),
-              variables,
-            });
-          },
-          async didEncounterErrors(requestContext) {
-            console.error('GraphQL Errors:', requestContext.errors);
-          },
-        };
-      },
-    },
-  ],
 });
 
 // Function to start the server
 async function startServer() {
-  // Start the server
   const { url } = await startStandaloneServer(server, {
     listen: { port: Number(process.env.PORT) || 4002 },
-    context: async ({ req }) => {
-      // Extract token from Authorization header
+    context: async ({ req }): Promise<Context> => {
       const token = req.headers.authorization?.replace('Bearer ', '') || '';
+      let userId: string | undefined;
+      let role: string | undefined;
 
-      try {
-        if (token) {
-          // Verify and decode the token
+      if (token) {
+        try {
           const decoded = jwt.verify(token, process.env.JWT_SECRET!) as {
             userId: string;
             role: string;
           };
-          return {
-            userId: decoded.userId,
-            role: decoded.role,
-            token,
-          };
+          userId = decoded.userId;
+          role = decoded.role;
+        } catch (error) {
+          console.error('Error verifying token:', error);
         }
-      } catch (error) {
-        console.error('Error verifying token:', error);
       }
 
-      return { token };
+      return {
+        token,
+        userId,
+        role,
+        prisma,
+        userService,
+      };
     },
   });
 

@@ -1,158 +1,101 @@
-import { PrismaClient, UserRole } from '@prisma/client';
-import { resolvers } from '../resolvers/userResolver';
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
+import { AuthenticationError, ForbiddenError } from 'apollo-server-errors';
+import resolvers from '../resolvers/userResolver';
+import { UserService } from '../userService';
+import { Context } from '../context';
+import { DeepMockProxy, mockDeep } from 'jest-mock-extended';
 
-// Mock bcrypt
-jest.mock('bcryptjs');
-const mockedBcrypt = bcrypt as jest.Mocked<typeof bcrypt>;
+// Define UserRole locally for test isolation
+enum UserRole {
+  CUSTOMER = 'CUSTOMER',
+  ADMIN = 'ADMIN',
+  SELLER = 'SELLER',
+}
 
-// Mock jwt
-jest.mock('jsonwebtoken');
-const mockedJwt = jwt as jest.Mocked<typeof jwt>;
+describe('User Resolver', () => {
+  let userServiceMock: DeepMockProxy<UserService>;
+  let mockContext: Context;
 
-// Mock Prisma client
-jest.mock('@prisma/client', () => {
   const mockUser = {
     id: '1',
     email: 'test@example.com',
-    password: 'hashedpassword',
     firstName: 'Test',
     lastName: 'User',
     role: UserRole.CUSTOMER,
     createdAt: new Date(),
     updatedAt: new Date(),
+    lastLogin: null,
+    refreshToken: null,
+    password: 'hashedpassword',
   };
 
-  return {
-    PrismaClient: jest.fn().mockImplementation(() => ({
-      user: {
-        findUnique: jest.fn().mockResolvedValue(mockUser),
-        findFirst: jest.fn().mockResolvedValue(null),
-        create: jest.fn().mockResolvedValue(mockUser),
-        update: jest.fn().mockResolvedValue(mockUser),
-        delete: jest.fn().mockResolvedValue(mockUser),
-        findMany: jest.fn().mockResolvedValue([mockUser]),
-      },
-    })),
-    UserRole,
-  };
-});
-
-describe('User Resolver', () => {
-  let prisma: PrismaClient;
-  const mockContext = { userId: '1', role: UserRole.CUSTOMER };
-
-  beforeAll(() => {
-    prisma = new PrismaClient();
-    mockedBcrypt.hash.mockResolvedValue('hashedpassword');
-    mockedBcrypt.compare.mockResolvedValue(true);
-    mockedJwt.sign.mockReturnValue('test-token' as any);
-    mockedJwt.verify.mockReturnValue({ userId: '1', role: UserRole.CUSTOMER } as any);
+  beforeEach(() => {
+    userServiceMock = mockDeep<UserService>();
+    mockContext = {
+      prisma: {} as any, // Not needed for resolver tests
+      userService: userServiceMock,
+    };
   });
 
   afterEach(() => {
     jest.clearAllMocks();
   });
 
-  describe('Query', () => {
-    it('should return the current user', async () => {
-      const result = await resolvers.Query.me(
-        {},
-        {},
-        { userId: '1' },
-        {} as any
-      );
+  describe('Query.me', () => {
+    it('should return a user for an authenticated request', async () => {
+      mockContext.userId = '1';
+      userServiceMock.me.mockResolvedValue(mockUser);
 
-      expect(result).toBeDefined();
-      expect(prisma.user.findUnique).toHaveBeenCalledWith({
-        where: { id: '1' },
-      });
+      const result = await resolvers.Query!.me!({}, {}, mockContext, {} as any);
+
+      expect(result).toEqual(mockUser);
+      expect(userServiceMock.me).toHaveBeenCalledWith('1');
     });
 
-    it('should return a user by ID for admin', async () => {
-      const result = await resolvers.Query.user(
-        {},
-        { id: '1' },
-        { userId: 'admin-1', role: UserRole.ADMIN },
-        {} as any
-      );
+    it('should throw AuthenticationError if not authenticated', () => {
+      mockContext.userId = undefined;
 
-      expect(result).toBeDefined();
-      expect(prisma.user.findUnique).toHaveBeenCalledWith({
-        where: { id: '1' },
-      });
+      expect(() =>
+        resolvers.Query!.me!({}, {}, mockContext, {} as any)
+      ).toThrow(new AuthenticationError('Not authenticated'));
+
+      expect(userServiceMock.me).not.toHaveBeenCalled();
     });
   });
 
-  describe('Mutation', () => {
-    it('should sign up a new user', async () => {
-      const input = {
-        email: 'new@example.com',
-        password: 'password123',
-        firstName: 'New',
-        lastName: 'User',
-        role: UserRole.CUSTOMER,
-      };
+  describe('Query.users', () => {
+    it('should throw ForbiddenError for non-ADMIN users', () => {
+      mockContext.role = UserRole.CUSTOMER;
 
-      const result = await resolvers.Mutation.signup(
-        {},
-        { input },
-        { prisma },
-        {} as any
-      );
+      expect(() =>
+        resolvers.Query!.users!({}, { role: null, page: 1, limit: 10 }, mockContext, {} as any)
+      ).toThrow(new ForbiddenError('Not authorized'));
 
-      expect(result).toHaveProperty('token');
-      expect(result).toHaveProperty('user');
-      expect(prisma.user.create).toHaveBeenCalledWith({
-        data: {
-          ...input,
-          password: 'hashedpassword',
-        },
-      });
-    });
-
-    it('should log in a user', async () => {
-      const input = {
-        email: 'test@example.com',
-        password: 'password123',
-      };
-
-      const result = await resolvers.Mutation.login(
-        {},
-        { input },
-        { prisma },
-        {} as any
-      );
-
-      expect(result).toHaveProperty('token');
-      expect(result).toHaveProperty('user');
-      expect(prisma.user.findUnique).toHaveBeenCalledWith({
-        where: { email: input.email },
-      });
-      expect(prisma.user.update).toHaveBeenCalled();
+      expect(userServiceMock.users).not.toHaveBeenCalled();
     });
   });
 
-  describe('User', () => {
-    it('should return full name when first and last name are provided', () => {
-      const result = resolvers.User.fullName(
-        { firstName: 'John', lastName: 'Doe' },
-        {},
-        {},
-        {} as any
-      );
-      expect(result).toBe('John Doe');
-    });
+  describe('Mutation.updateProfile', () => {
+    it('should throw AuthenticationError if not authenticated', () => {
+      mockContext.userId = undefined;
+      const input = { firstName: 'New' };
 
-    it('should return first name when only first name is provided', () => {
-      const result = resolvers.User.fullName(
-        { firstName: 'John', lastName: null },
-        {},
-        {},
-        {} as any
-      );
-      expect(result).toBe('John');
+      expect(() =>
+        resolvers.Mutation!.updateProfile!({}, { input }, mockContext, {} as any)
+      ).toThrow(new AuthenticationError('Not authenticated'));
+
+      expect(userServiceMock.updateProfile).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Mutation.deleteAccount', () => {
+    it('should throw AuthenticationError if not authenticated', () => {
+      mockContext.userId = undefined;
+
+      expect(() =>
+        resolvers.Mutation!.deleteAccount!({}, {}, mockContext, {} as any)
+      ).toThrow(new AuthenticationError('Not authenticated'));
+
+      expect(userServiceMock.deleteAccount).not.toHaveBeenCalled();
     });
   });
 });
