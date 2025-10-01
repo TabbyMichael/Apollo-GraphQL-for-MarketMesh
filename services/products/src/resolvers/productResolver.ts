@@ -1,7 +1,6 @@
-import { PrismaClient } from '@prisma/client';
+import { AuthenticationError, ForbiddenError } from 'apollo-server-errors';
 import { Resolvers } from '../generated/graphql';
-
-const prisma = new PrismaClient();
+import { Context } from '../context';
 
 const resolvers: Resolvers = {
   Product: {
@@ -11,69 +10,32 @@ const resolvers: Resolvers = {
     },
   },
   Query: {
-    products: async (_, {
-      name,
-      minPrice,
-      maxPrice,
-      sellerId,
-      page = 1,
-      limit = 20,
-    }) => {
-      const skip = (page - 1) * limit;
-
-      const where = {
-        ...(name && { name: { contains: name, mode: 'insensitive' } }),
-        ...(minPrice !== undefined && { price: { gte: minPrice } }),
-        ...(maxPrice !== undefined && {
-          price: {
-            ...(minPrice !== undefined ? { gte: minPrice } : {}),
-            lte: maxPrice
-          }
-        }),
-        ...(sellerId && { sellerId }),
-      };
-
-      return prisma.product.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { createdAt: 'desc' },
-      });
+    products: (_, { name, minPrice, maxPrice, sellerId, page, limit }, { productService }) => {
+      return productService.products(name, minPrice, maxPrice, sellerId, page, limit);
     },
-    product: (_, { id }) => {
-      return prisma.product.findUnique({
-        where: { id },
-      });
+    product: (_, { id }, { productService }) => {
+      return productService.product(id);
     },
   },
   Mutation: {
-    createProduct: async (_, { input }) => {
-      return prisma.product.create({
-        data: {
-          name: input.name,
-          description: input.description,
-          price: input.price,
-          stock: input.stock,
-          sellerId: input.sellerId,
-        },
-      });
+    createProduct: (_, { input }, { productService, userId }) => {
+      if (!userId) {
+        throw new AuthenticationError('You must be logged in to create a product.');
+      }
+      // The service will validate that the input's sellerId matches the authenticated user
+      return productService.createProduct(input, userId);
     },
-    updateProduct: async (_, { id, input }) => {
-      return prisma.product.update({
-        where: { id },
-        data: {
-          ...(input.name && { name: input.name }),
-          ...(input.description !== undefined && { description: input.description }),
-          ...(input.price !== undefined && { price: input.price }),
-          ...(input.stock !== undefined && { stock: input.stock }),
-        },
-      });
+    updateProduct: (_, { id, input }, { productService, userId, userRole }) => {
+      if (!userId || !userRole) {
+        throw new AuthenticationError('You must be logged in to update a product.');
+      }
+      return productService.updateProduct(id, input, userId, userRole);
     },
-    deleteProduct: async (_, { id }) => {
-      await prisma.product.delete({
-        where: { id },
-      });
-      return true;
+    deleteProduct: async (_, { id }, { productService, userId, userRole }) => {
+      if (!userId || !userRole) {
+        throw new AuthenticationError('You must be logged in to delete a product.');
+      }
+      return productService.deleteProduct(id, userId, userRole);
     },
   },
 };

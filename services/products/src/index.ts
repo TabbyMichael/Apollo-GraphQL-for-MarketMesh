@@ -8,6 +8,7 @@ import { loadFilesSync } from '@graphql-tools/load-files';
 import { mergeResolvers } from '@graphql-tools/merge';
 import { Resolvers } from './generated/graphql';
 import productResolvers from './resolvers/productResolver';
+import { createContext } from './context';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -52,11 +53,7 @@ const server = new ApolloServer({
 // Start the server
 const { url } = await startStandaloneServer(server, {
   listen: { port: Number(process.env.PORT) || 4001 },
-  context: async ({ req }) => {
-    // You can add authentication/authorization logic here
-    const token = req.headers.authorization || '';
-    return { token };
-  },
+  context: createContext,
 });
 
 console.log(`🚀 Products service ready at ${url}`);
