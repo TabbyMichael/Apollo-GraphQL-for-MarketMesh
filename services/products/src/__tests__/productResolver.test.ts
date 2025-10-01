@@ -1,126 +1,118 @@
-import { PrismaClient } from '@prisma/client';
-import { resolvers } from '../resolvers/productResolver';
+import resolvers from '../resolvers/productResolver';
+import { ProductService } from '../productService';
+import { UserRole } from '@prisma/client';
+import { AuthenticationError, ForbiddenError } from 'apollo-server-errors';
 
-// Mock Prisma client
-jest.mock('@prisma/client', () => {
-  const mockProduct = {
-    id: '1',
-    name: 'Test Product',
-    description: 'Test Description',
-    price: 99.99,
-    stock: 10,
-    sellerId: 'seller-1',
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  };
+// Mock the ProductService to isolate the resolver tests
+jest.mock('../productService');
 
-  return {
-    PrismaClient: jest.fn().mockImplementation(() => ({
-      product: {
-        findMany: jest.fn().mockResolvedValue([mockProduct]),
-        findUnique: jest.fn().mockResolvedValue(mockProduct),
-        create: jest.fn().mockResolvedValue(mockProduct),
-        update: jest.fn().mockResolvedValue(mockProduct),
-        delete: jest.fn().mockResolvedValue(mockProduct),
-      },
-    })),
-  };
-});
+const mockProductService = new ProductService(null as any) as jest.Mocked<ProductService>;
+
+// Define different user contexts for testing authorization
+const mockSellerContext = {
+  productService: mockProductService,
+  userId: 'seller-123',
+  userRole: 'SELLER' as UserRole,
+};
+
+const mockAdminContext = {
+  productService: mockProductService,
+  userId: 'admin-456',
+  userRole: 'ADMIN' as UserRole,
+};
+
+const mockOtherUserContext = {
+    productService: mockProductService,
+    userId: 'other-user-789',
+    userRole: 'CUSTOMER' as UserRole,
+};
+
+const mockUnauthenticatedContext = {
+    productService: mockProductService,
+    userId: null,
+    userRole: null,
+};
 
 describe('Product Resolver', () => {
-  let prisma: PrismaClient;
-
-  beforeAll(() => {
-    prisma = new PrismaClient();
-  });
-
   afterEach(() => {
     jest.clearAllMocks();
   });
 
-  describe('Query', () => {
-    it('should return an array of products', async () => {
-      const result = await resolvers.Query.products(
-        {},
-        {},
-        { prisma, token: null },
-        {} as any
-      );
+  const mockProduct = {
+    id: 'product-abc',
+    name: 'Test Product',
+    sellerId: 'seller-123',
+    // other fields omitted for brevity
+  };
 
-      expect(Array.isArray(result)).toBe(true);
-      expect(prisma.product.findMany).toHaveBeenCalledTimes(1);
-    });
-
-    it('should return a single product', async () => {
-      const result = await resolvers.Query.product(
-        {},
-        { id: '1' },
-        { prisma, token: null },
-        {} as any
-      );
-
-      expect(result).toHaveProperty('id', '1');
-      expect(prisma.product.findUnique).toHaveBeenCalledWith({
-        where: { id: '1' },
-      });
+  describe('Query.products', () => {
+    it('should call the service to get all products', async () => {
+      mockProductService.products.mockResolvedValue([mockProduct as any]);
+      await resolvers.Query.products({}, {}, mockSellerContext, {} as any);
+      expect(mockProductService.products).toHaveBeenCalledTimes(1);
     });
   });
 
-  describe('Mutation', () => {
-    it('should create a product', async () => {
-      const input = {
-        name: 'New Product',
-        description: 'New Description',
-        price: 199.99,
-        stock: 5,
-        sellerId: 'seller-1',
-      };
+  describe('Query.product', () => {
+    it('should call the service to get a single product', async () => {
+      mockProductService.product.mockResolvedValue(mockProduct as any);
+      await resolvers.Query.product({}, { id: 'product-abc' }, mockSellerContext, {} as any);
+      expect(mockProductService.product).toHaveBeenCalledWith('product-abc');
+    });
+  });
 
-      const result = await resolvers.Mutation.createProduct(
-        {},
-        { input },
-        { prisma, token: null },
-        {} as any
-      );
+  describe('Mutation.createProduct', () => {
+    const input = { name: 'New Gadget', sellerId: 'seller-123', price: 100, stock: 10 };
 
-      expect(result).toHaveProperty('id');
-      expect(prisma.product.create).toHaveBeenCalledWith({
-        data: input,
-      });
+    it('should create a product when authenticated', async () => {
+      mockProductService.createProduct.mockResolvedValue(mockProduct as any);
+      await resolvers.Mutation.createProduct({}, { input }, mockSellerContext, {} as any);
+      expect(mockProductService.createProduct).toHaveBeenCalledWith(input, mockSellerContext.userId);
     });
 
-    it('should update a product', async () => {
-      const updates = {
-        name: 'Updated Product',
-        price: 249.99,
-      };
+    it('should throw an AuthenticationError if user is not logged in', () => {
+        const action = () => resolvers.Mutation.createProduct({}, { input }, mockUnauthenticatedContext, {} as any);
+        expect(action).toThrow(AuthenticationError);
+    });
+  });
 
-      const result = await resolvers.Mutation.updateProduct(
-        {},
-        { id: '1', input: updates },
-        { prisma, token: null },
-        {} as any
-      );
+  describe('Mutation.updateProduct', () => {
+    const input = { name: 'Updated Gadget' };
 
-      expect(result).toHaveProperty('id');
-      expect(prisma.product.update).toHaveBeenCalledWith({
-        where: { id: '1' },
-        data: updates,
-      });
+    it('should update a product for the correct seller', async () => {
+      mockProductService.updateProduct.mockResolvedValue(mockProduct as any);
+      await resolvers.Mutation.updateProduct({}, { id: 'product-abc', input }, mockSellerContext, {} as any);
+      expect(mockProductService.updateProduct).toHaveBeenCalledWith('product-abc', input, mockSellerContext.userId, mockSellerContext.userRole);
     });
 
-    it('should delete a product', async () => {
-      const result = await resolvers.Mutation.deleteProduct(
-        {},
-        { id: '1' },
-        { prisma, token: null },
-        {} as any
-      );
+    it('should update a product for an admin', async () => {
+        mockProductService.updateProduct.mockResolvedValue(mockProduct as any);
+        await resolvers.Mutation.updateProduct({}, { id: 'product-abc', input }, mockAdminContext, {} as any);
+        expect(mockProductService.updateProduct).toHaveBeenCalledWith('product-abc', input, mockAdminContext.userId, mockAdminContext.userRole);
+    });
 
-      expect(result).toBe(true);
-      expect(prisma.product.delete).toHaveBeenCalledWith({
-        where: { id: '1' },
-      });
+    it('should call the service to update, and the service is responsible for authorization', async () => {
+        await resolvers.Mutation.updateProduct({}, { id: 'product-abc', input }, mockOtherUserContext, {} as any);
+        expect(mockProductService.updateProduct).toHaveBeenCalledWith('product-abc', input, mockOtherUserContext.userId, mockOtherUserContext.userRole);
+    });
+  });
+
+  describe('Mutation.deleteProduct', () => {
+    it('should delete a product for the correct seller', async () => {
+      mockProductService.deleteProduct.mockResolvedValue(true);
+      await resolvers.Mutation.deleteProduct({}, { id: 'product-abc' }, mockSellerContext, {} as any);
+      expect(mockProductService.deleteProduct).toHaveBeenCalledWith('product-abc', mockSellerContext.userId, mockSellerContext.userRole);
+    });
+
+    it('should delete a product for an admin', async () => {
+        mockProductService.deleteProduct.mockResolvedValue(true);
+        await resolvers.Mutation.deleteProduct({}, { id: 'product-abc' }, mockAdminContext, {} as any);
+        expect(mockProductService.deleteProduct).toHaveBeenCalledWith('product-abc', mockAdminContext.userId, mockAdminContext.userRole);
+    });
+
+    it('should call the service to delete, and the service is responsible for authorization', async () => {
+        await resolvers.Mutation.deleteProduct({}, { id: 'product-abc' }, mockOtherUserContext, {} as any);
+        expect(mockProductService.deleteProduct).toHaveBeenCalledWith('product-abc', mockOtherUserContext.userId, mockOtherUserContext.userRole);
     });
   });
 });
